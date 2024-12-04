@@ -1,38 +1,73 @@
 import streamlit as st
-from streamlit_folium import st_folium
-import folium
+import time
 
-# Title of the app
-st.title("Interactive Map with Draggable Markers")
+st.title("Book Logging Timer")
 
-# Define the initial map center coordinates
-map_center = [34.0522, -118.2437]  # Example location: Los Angeles
+# Initialize session state for book data
+if "books" not in st.session_state:
+    st.session_state.books = []  # A list of dictionaries, each representing a book
+if "current_book" not in st.session_state:
+    st.session_state.current_book = None
+if "start_time" not in st.session_state:
+    st.session_state.start_time = None
 
-# Initialize map centered at the specified coordinates
-m = folium.Map(location=map_center, zoom_start=10)
+# Input for book details
+with st.form("book_form", clear_on_submit=True):
+    title = st.text_input("Enter Book Title")
+    estimated_time = st.number_input(
+        "Estimated Reading Time (in minutes)", min_value=0, step=1
+    )
+    submitted = st.form_submit_button("Add Book")
 
-# Add a draggable center marker
-center_marker = folium.Marker(
-    location=map_center,
-    popup="Center Marker",
-    tooltip="Center Marker",
-    draggable=True
-)
-center_marker.add_to(m)
+    if submitted and title:
+        st.session_state.books.append(
+            {
+                "title": title,
+                "estimated_time": estimated_time,
+                "actual_time": None,
+                "start_time": None,
+                "elapsed_time": 0,
+            }
+        )
+        st.success(f"Book '{title}' added!")
 
-# Track markers in session state
-if "markers" not in st.session_state:
-    st.session_state.markers = []
+# Display the list of books and allow tracking
+if st.session_state.books:
+    st.subheader("Books Logged")
+    for idx, book in enumerate(st.session_state.books):
+        st.markdown(f"**{book['title']}**")
+        col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
 
-# Button to add a new draggable marker
-if st.button("Add a New Draggable Marker"):
-    # Add a new draggable marker slightly offset each time
-    new_marker = [map_center[0] + 0.01 * len(st.session_state.markers), map_center[1]]
-    st.session_state.markers.append(new_marker)
+        # Edit Estimated Time
+        new_estimated_time = col1.number_input(
+            f"Edit Estimated Time for '{book['title']}' (min)",
+            value=book["estimated_time"],
+            key=f"edit_time_{idx}",
+        )
+        book["estimated_time"] = new_estimated_time
 
-# Add each draggable marker from session state to the map
-for marker in st.session_state.markers:
-    folium.Marker(location=marker, popup="New Draggable Marker", tooltip="New Marker", draggable=True).add_to(m)
+        # Start Timer Button
+        if col2.button(f"Start Timer", key=f"start_{idx}"):
+            st.session_state.start_time = time.time()
+            book["start_time"] = time.time()
 
-# Display the map
-st_folium(m, width=700, height=500)
+        # Stop Timer Button
+        if col3.button(f"Stop Timer", key=f"stop_{idx}"):
+            if book["start_time"]:
+                elapsed_time = time.time() - book["start_time"]
+                book["elapsed_time"] += elapsed_time
+                book["start_time"] = None
+            st.session_state.start_time = None
+
+        # Display Elapsed Time
+        col4.write(
+            f"Actual Time: {book['elapsed_time'] / 60:.2f} min"
+            if book["elapsed_time"]
+            else "Not Started"
+        )
+
+    st.subheader("Summary")
+    for idx, book in enumerate(st.session_state.books):
+        st.write(
+            f"**{book['title']}** | Estimated: {book['estimated_time']} min | Actual: {book['elapsed_time'] / 60:.2f} min"
+        )
